@@ -4,20 +4,20 @@
 #' make sure the levels are created in increasing alphabetical order.   
 #' @param y_name The name of response variabel, i.e."missingAgain". 
 #' Response variable must be binary. 
+#' @param is_numeric Are categorical variables encoded by numeric values? 
 #' @param data_imputation If TRUE, data imputation will be performed. 
 #' Otherwise the observations with missing values will be ignored.
-#' @param char_col column index(es) for categorical variables for the given data. 
-#' If is_numeric=FALSE, set char_col=0, the function will detect categorical variables 
-#' automatically. If is_numeric=FALSE, select all categorical variables' indexes. 
-#' ex.1 if column 1 is the only categorical variable, char_col=1; 
-#' ex.2 if column 2, 3, 4 are categorical variables, char_col=c(2, 3, 4)    
-#' @param ordinal_col column indexes for ordinal variables for the given data. 
-#' ex.1 if column 1 is the only categorical variable, ordinal_col=1; 
-#' ex.2 if column 2, 3, 4 are ordinal variables, char_col=c(2, 3, 4) 
-#' @param group_lasso group lasso is used for variable selection or not. 
-#' group_lasso=TRUE if group lasso is used for the model, otherwise group_lasso=FALSE. 
+#' @param char_col A vector of column indexes of categorical variables should be provided 
+#' if is_numeric = TRUE. Otherwise give 0 to this argument then the function will detect 
+#' all categorical variables automatically. 
+#' ex.1 if column 1 is the only categorical variable, char_col = 1; 
+#' ex.2 if column 2, 3, 4 are categorical variables, char_col = c(2, 3, 4)    
+#' @param ordinal_col A vector of column indexes for ordinal variables. 
+#' ex.1 if column 1 is the only categorical variable, ordinal_col = 1; 
+#' ex.2 if column 2, 3, 4 are ordinal variables, char_col = c(2, 3, 4) 
+#' @param group_lasso If TRUE, use group lasso model, otherwise use plain lasso. 
 #' If the given data have at least one categorical variable with 3 or more levels, 
-#' group lasso is required. Otherwise, lasso will be used in our model.
+#' group lasso is suggested.
 #' @param a Percentage of data for training, the rest would be used for testing.
 #' 
 #' @return List of:
@@ -31,9 +31,6 @@
 #'   \item Prediction of test data - Plot each person's probabilities (risks) of missing again &
 #'    classification with the "best" threshold
 #'   \item Selected variables - All selected variables and their coefficients will be returned
-#'   \item emotion_type - Type designation from the \code{emotion} column of the \code{emotion_dt} table
-#'   \item emotion_count - Count of the number of emotion words of that \code{emotion_type}
-#'   \item emotion - A score of the percentage of emotion words of that \code{emotion_type}
 #' }
 #' 
 #' @keywords prediction missing-person
