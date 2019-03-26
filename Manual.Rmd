@@ -13,11 +13,20 @@ date: "March 20, 2019"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-We use lasso to do the feature selection, and apply a Logistic regression to the Missing person project data. Best threshold is selected by the ROC curve, then we are able to translate probabilities to predictions. Part I is the coding details for the proposed model, and we write this model as a generic function for people from different disciplines to use. For Part II, we use a data set to implement the model from Part I. Part III is the process of model implementation for more general cases.
+Part I is the usage of the model, including arguments and coding details. Part II give some examples, we use complete data and incomplete data to illustrate the model from Part I. Part III is a reference list.
 
 
-#  Model function
+#  Model
 ## Desription 
+Fit a logistic regression model via penalized maximum likelihood. Can deal with all shapes of data, including very large sparse data matrices. Return output for test data, including risks and classifications.
+
+Note:
+* Nominal Categorical Variable: 
+A categorical variable has several values but the order does not matter. For instance, male or female categorical variable do not have ordering. Recode males as 1 and females as 2. It involves repeated (nested) use of the ifelse() command in R.
+
+* Ordinal Categorical Variable:
+Ordinal categorical variables do have a natural ordering. They can be converted to numerical values and used as is. For example, if the professor grades (“AsstProf”, “AssocProf” and “Prof”) have a special meaning, you can convert them into numerical values, ordered from low to high, corresponding to higher-grade professors.
+
 ## Input
 * data 
 a data set including a binary response variable, with n rows(observartions) and (p+1) columns(p variables and 1 response variable). If the variable is ordinal with 10 or more levels, we will treat this variable as continues. For this case, please make sure the levels are created in increasing  alphabetical order.  
@@ -46,17 +55,17 @@ the proportion of training data, a value between 0 and 1. the proportion of test
 
 
 ## Output
+The following output will be returned from the model:
 * ROC curve
 ROC curve is a graphical plot that illustrates the diagnostic ability of a binary classifier system as its discrimination threshold is varied. It is created by plotting the true positive rate (sensitivity) against the false positive rate (1 − specificity) at various threshold settings. We can get the "best" threshold which has the highest accuracy among all threshold settings, in the meanwhile, the specificity and sensitivity will be returned at this threshold.
  
 * Prediction of test data 
- Plot each person's probabilities (risks) of missing again & classification
+Plot each person's probabilities (risks) of missing again & classification with the "best" threshold
 
 * Selected variables   
 All selected variables and their coefficients will be returned
 
-* Confusion Matrix & Accuracy & false positive rate
-
+* Accuracy of the classifier 
 
 ## R code
 ### Load packages
@@ -74,9 +83,9 @@ suppressPackageStartupMessages({
 ```{r}
 ## mp_data is a data frame for the target data set
 ## a is the proportion of training data
-reportStats <- function(data, y_name="", data_imputation=TRUE, is_numeric=TRUE, 
-                        char_col, ordinal_col, group_lasso=TRUE, a) {
-  ##############################Data Pre Processing##############################
+reportStats <- function(data, y_name, data_imputation=FALSE, is_numeric, 
+                        char_col, ordinal_col, group_lasso, a) {
+  ###################################Data Pre Processing###################################
   ############# imputation
   data[data=="NULL"] <- NA 
   if(data_imputation==TRUE){
@@ -116,9 +125,11 @@ reportStats <- function(data, y_name="", data_imputation=TRUE, is_numeric=TRUE,
   testData <- data[-trainDataIndex, ]
   Y_train <- data$y[trainDataIndex]
   Y_test <- data$y[-trainDataIndex]
+  #########################################################################################
   
   
-  ##################Logistic Model & Lasso Variables Selection###################
+  
+  #######################Logistic Model & Lasso Variables Selection########################
   ############# data & group
   X1 <- model.matrix(y ~., data = data.frame(trainData))
   X <- X1[,-1]
@@ -144,9 +155,11 @@ reportStats <- function(data, y_name="", data_imputation=TRUE, is_numeric=TRUE,
     # test data
     prob <- predict(model,newx = X_test, s=cv$lambda.1se, type="response")
   } 
+  #########################################################################################
   
   
-  ##################################Prediction###################################
+  
+  #######################################Prediction########################################
   # selected variables 
   coefs <- as.matrix(coef(cv)) 
   ix <- which(abs(coefs[,1]) > 0)
@@ -160,9 +173,11 @@ reportStats <- function(data, y_name="", data_imputation=TRUE, is_numeric=TRUE,
   # accuracy, confusion matrix
   accuracy <- mean(predict1==Y_test)  
   confusion_matrix <- table(pred=predict1,true=Y_test)
+  #########################################################################################
   
   
-  ####################################Output#####################################
+
+  #########################################Output##########################################
   print("******************************************************************************")
   print("****************************Statistical Report********************************")
   # ROC curve    
@@ -186,6 +201,7 @@ reportStats <- function(data, y_name="", data_imputation=TRUE, is_numeric=TRUE,
   print(confusion_matrix)
   print(paste('Accuracy:', format(accuracy,digits=2)))
   print("******************************************************************************")
+  #########################################################################################
 }
 ```
 
@@ -211,7 +227,7 @@ reportStats(data=mp_data, y_name="missingAgain", data_imputation=FALSE, is_numer
 ### Read in data
 ```{r}
 # read data
-incomplete_data <- read.csv("mp_data.csv")
+incomplete_data <- read.csv("data/mp_data.csv")
 
 
 ```
@@ -223,43 +239,9 @@ incomplete_data <- read.csv("mp_data.csv")
 
 
 # Implementation Process
-## *Step 1: Data preparation*
-### (a) SQL Query
-* Select the target data set from SQL, with n observations and p variables.
-* Read data in R, and make it as a data frame.
-
-### (b) Recoding values for categorical variables
-As regression requires numerical inputs, categorical variables need to be recoded into a set of binary variables. Note that, for categorical variables with a large number of levels it might be useful to group together some of the levels.
-
-* Nominal Categorical Variable
-A categorical variable has several values but the order does not matter. For instance, male or female categorical variable do not have ordering. Recode males as 1 and females as 2. It involves repeated (nested) use of the ifelse() command in R.
-
-* Ordinal Categorical Variable
-Ordinal categorical variables do have a natural ordering. They can be converted to numerical values and used as is. For example, if the professor grades (“AsstProf”, “AssocProf” and “Prof”) have a special meaning, you can convert them into numerical values, ordered from low to high, corresponding to higher-grade professors.
 
 
 
-### (c)  Dealing with missing data
-Generally if you have a large enough set of data and your NAs/NANs account for ~10% of your data, you can simply remove the affected rows. If removing data will not work for you then you should look into imputation. Simple approaches include taking the average of the column and use that value, or if there is a heavy skew the median might be better. A better approach, you can perform regression or nearest neighbor imputation on the column to predict the missing values. Then continue on with your analysis/model.
-Missing values in data is a common phenomenon in real world problems. Knowing how to handle missing values effectively is a required step to reduce bias and to produce powerful models. There are various options of how to deal with missing values and how to implement them.
-
-
-* Deleting the observations
-If you have large number of observations in your dataset, where all the classes to be predicted are sufficiently represented in the training data, then try deleting (or not to include missing values while model building, for example by setting na.action=na.omit) those observations (rows) that contain missing values. 
-
-* Deleting the variable
-If a paricular variable is having more missing values that rest of the variables in the dataset, and, if by removing that one variable you can save many observations, then you are better off without that variable unless it is a really important predictor that makes a lot of business sense. It is a matter of deciding between the importance of the variable and losing out on a number of observations.
-
-* Imputation with mean / median / mode
-Replacing the missing values with the mean / median / mode is a crude way of treating missing values. Depending on the context, like if the variation is low or if the variable has low leverage over the response, such a rough approximation is acceptable and could possibly give satisfactory results.
-
-* Prediction
-Prediction is most advanced method to impute missing values and includes different approaches such as: kNNImputation, rpart, and mice. We are able to use different packages in R to predict missing values.
-
-## *Step 2: Use generic function* 
-*  Read in prepared data from process 1.
-*  Determine the proportion of training data as argument "a" in reportStats function.
-*  Use function "reportStats(mp_data, a)" to generate a model report.
 
 
 
