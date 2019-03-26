@@ -6,6 +6,7 @@ output:
     toc: true
     toc_float: true
     number_sections: true
+bibliography: references.bib
 date: "March 20, 2019"
 ---
 
@@ -18,48 +19,59 @@ Part I is the usage of the model, including arguments and coding details. Part I
 
 #  Model
 ## Desription 
-Fit a logistic regression model via penalized maximum likelihood. Can deal with all shapes of data, including very large sparse data matrices. Return output for test data, including risks and classifications.
-
-Note:
-* Nominal Categorical Variable: 
-A categorical variable has several values but the order does not matter. For instance, male or female categorical variable do not have ordering. Recode males as 1 and females as 2. It involves repeated (nested) use of the ifelse() command in R.
-
-* Ordinal Categorical Variable:
-Ordinal categorical variables do have a natural ordering. They can be converted to numerical values and used as is. For example, if the professor grades (“AsstProf”, “AssocProf” and “Prof”) have a special meaning, you can convert them into numerical values, ordered from low to high, corresponding to higher-grade professors.
+Fit a logistic regression model via penalized maximum likelihood for a binary classifier. Can deal with all shapes of data, including very large sparse data matrices. Return output for test data, including risks and classifications.
 
 ## Input
-* data 
+* **data** 
+\
 a data set including a binary response variable, with n rows(observartions) and (p+1) columns(p variables and 1 response variable). If the variable is ordinal with 10 or more levels, we will treat this variable as continues. For this case, please make sure the levels are created in increasing  alphabetical order.  
 
-* y_name
+* **y_name**
+\
 the name of response variabel. Response variable must be a binary variable. ex. y="missingAgain".
 
-* data_imputation
+* **data_imputation**
+\
 data imputation are required or not. data_imputation=TRUE if data imputation are required, otherwise data_imputation=FALSE. The function will delete observations(rows) with missing values automatically if data_imputation=FALSE.
 
-* is_numeric=TRUE;
+* **is_numeric**
+\
 data are collected by numeric numbers or characters. is_numeric=TRUE if data are collected by numeric, is_numeric=FALSE if data are collected by characters.
 
-* char_col=c(1,2,9);
-column index(es) for categorical variables for the given data. If is_numeric=FALSE, set char_col=0, the function will detect categorical variables automatically. If is_numeric=FALSE, select all categorical variables' indexes. ex.1 if column 1 is the only categorical variable, char_col=1; ex.2 if column 2, 3, 4 are categorical variables, char_col=c(2, 3, 4)   
+* **char_col**
+\
+column index(es) for categorical variables for the given data. If is_numeric=FALSE, set char_col=0, the function will detect categorical variables automatically. If is_numeric=FALSE, select all categorical variables' indexes. ex.1 if column 1 is the only categorical variable, char_col=1; ex.2 if column 2, 3, 4 are categorical variables, char_col=c(2, 3, 4).   
 
-* ordinal_col=2; 
+* **ordinal_col**
+\
 column index(es) for ordinal variables for the given data. ex.1 if column 1 is the only categorical variable, ordinal_col=1; ex.2 if column 2, 3, 4 are ordinal variables, char_col=c(2, 3, 4)   
+*Nominal Categorical Variable:*
+ \
+A categorical variable has several values but the order does not matter. For instance, male or female categorical variable do not have ordering. Recode males as 1 and females as 2. It involves repeated (nested) use of the ifelse() command in R.\
+*Ordinal Categorical Variable:*
+ \
+Ordinal categorical variables have a natural ordering. They can be converted to numerical values and used as is. For example, if the professor grades (“AsstProf”, “AssocProf” and “Prof”) have a special meaning, you can convert them into numerical values, ordered from low to high, corresponding to higher-grade professors.
 
-* group_lasso
+
+* **group_lasso**
+\
 group lasso is used for variable selection or not. group_lasso=TRUE if group lasso is used for the model, otherwise group_lasso=FALSE. If the given data have at least one categorical variable with 3 or more levels, group lasso is required. Otherwise, lasso will be used in our model.
 
-* a
+* **a**
+\
 the proportion of training data, a value between 0 and 1. the proportion of test data would be 1-a.
 
 
 
 ## Output
 The following output will be returned from the model:
+
 * ROC curve
+\
 ROC curve is a graphical plot that illustrates the diagnostic ability of a binary classifier system as its discrimination threshold is varied. It is created by plotting the true positive rate (sensitivity) against the false positive rate (1 − specificity) at various threshold settings. We can get the "best" threshold which has the highest accuracy among all threshold settings, in the meanwhile, the specificity and sensitivity will be returned at this threshold.
  
 * Prediction of test data 
+\
 Plot each person's probabilities (risks) of missing again & classification with the "best" threshold
 
 * Selected variables   
@@ -83,7 +95,7 @@ suppressPackageStartupMessages({
 ```{r}
 ## mp_data is a data frame for the target data set
 ## a is the proportion of training data
-reportStats <- function(data, y_name, data_imputation=FALSE, is_numeric, 
+reportStats <- function(data, y_name, data_imputation, is_numeric, 
                         char_col, ordinal_col, group_lasso, a) {
   ###################################Data Pre Processing###################################
   ############# imputation
@@ -210,8 +222,8 @@ reportStats <- function(data, y_name, data_imputation=FALSE, is_numeric,
 ### Read in data
 ```{r}
 # read data
-mp_data1 <- readxl::read_xlsx("test.xlsx")
-mp_data2 <- readxl::read_xlsx("train.xlsx")
+mp_data1 <- readxl::read_xlsx("data/test.xlsx")
+mp_data2 <- readxl::read_xlsx("data/train.xlsx")
 mp_data <- rbind(mp_data1, mp_data2) 
 mp_data <- data.frame(mp_data)
 mp_data <- mp_data[,-1] 
@@ -219,8 +231,8 @@ mp_data <- mp_data[,-1]
 
 ### Output 
 ```{r}
-reportStats(data=mp_data, y_name="missingAgain", data_imputation=FALSE, is_numeric=TRUE, 
-                        char_col=c(1,2,9), ordinal_col=2, group_lasso=TRUE, a=0.7) 
+#reportStats(data=mp_data, y_name="missingAgain", data_imputation=FALSE, is_numeric=TRUE, 
+#                        char_col=c(1,2,9), ordinal_col=2, group_lasso=TRUE, a=0.7) 
 ```
 
 ## Example 2 (Incomplete data)
@@ -228,22 +240,12 @@ reportStats(data=mp_data, y_name="missingAgain", data_imputation=FALSE, is_numer
 ```{r}
 # read data
 incomplete_data <- read.csv("data/mp_data.csv")
-
-
 ```
 ### Output 
 ```{r}
-#reportStats(mp_data, a=0.75)
+#reportStats()
 ```
 
 
 
-# Implementation Process
-
-
-
-
-
-
-future work: choose cut off accodring false positive 
-
+# Reference
