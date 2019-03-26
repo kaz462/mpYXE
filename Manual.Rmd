@@ -46,6 +46,17 @@ the proportion of training data, a value between 0 and 1. the proportion of test
 
 
 ## Output
+* ROC curve
+ROC curve is a graphical plot that illustrates the diagnostic ability of a binary classifier system as its discrimination threshold is varied. It is created by plotting the true positive rate (sensitivity) against the false positive rate (1 − specificity) at various threshold settings. We can get the "best" threshold which has the highest accuracy among all threshold settings, in the meanwhile, the specificity and sensitivity will be returned at this threshold.
+ 
+* Prediction of test data 
+ Plot each person's probabilities (risks) of missing again & classification
+
+* Selected variables   
+All selected variables and their coefficients will be returned
+
+* Confusion Matrix & Accuracy & false positive rate
+
 
 ## R code
 ### Load packages
@@ -252,4 +263,5 @@ Prediction is most advanced method to impute missing values and includes differe
 
 
 
+future work: choose cut off accodring false positive 
 
