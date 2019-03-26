@@ -1,0 +1,255 @@
+---
+title: "Statistical Model Manual for MP project"
+output:
+  html_document:
+    df_print: paged
+    toc: true
+    toc_float: true
+    number_sections: true
+date: "March 20, 2019"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+We use lasso to do the feature selection, and apply a Logistic regression to the Missing person project data. Best threshold is selected by the ROC curve, then we are able to translate probabilities to predictions. Part I is the coding details for the proposed model, and we write this model as a generic function for people from different disciplines to use. For Part II, we use a data set to implement the model from Part I. Part III is the process of model implementation for more general cases.
+
+
+#  Model function
+## Desription 
+## Input
+* data 
+a data set including a binary response variable, with n rows(observartions) and (p+1) columns(p variables and 1 response variable). If the variable is ordinal with 10 or more levels, we will treat this variable as continues. For this case, please make sure the levels are created in increasing  alphabetical order.  
+
+* y_name
+the name of response variabel. Response variable must be a binary variable. ex. y="missingAgain".
+
+* data_imputation
+data imputation are required or not. data_imputation=TRUE if data imputation are required, otherwise data_imputation=FALSE. The function will delete observations(rows) with missing values automatically if data_imputation=FALSE.
+
+* is_numeric=TRUE;
+data are collected by numeric numbers or characters. is_numeric=TRUE if data are collected by numeric, is_numeric=FALSE if data are collected by characters.
+
+* char_col=c(1,2,9);
+column index(es) for categorical variables for the given data. If is_numeric=FALSE, set char_col=0, the function will detect categorical variables automatically. If is_numeric=FALSE, select all categorical variables' indexes. ex.1 if column 1 is the only categorical variable, char_col=1; ex.2 if column 2, 3, 4 are categorical variables, char_col=c(2, 3, 4)   
+
+* ordinal_col=2; 
+column index(es) for ordinal variables for the given data. ex.1 if column 1 is the only categorical variable, ordinal_col=1; ex.2 if column 2, 3, 4 are ordinal variables, char_col=c(2, 3, 4)   
+
+* group_lasso
+group lasso is used for variable selection or not. group_lasso=TRUE if group lasso is used for the model, otherwise group_lasso=FALSE. If the given data have at least one categorical variable with 3 or more levels, group lasso is required. Otherwise, lasso will be used in our model.
+
+* a
+the proportion of training data, a value between 0 and 1. the proportion of test data would be 1-a.
+
+
+
+## Output
+
+## R code
+### Load packages
+```{r}
+# loading required packages: glmnet, pROC, readxl
+suppressPackageStartupMessages({
+  library(glmnet);
+  library(gglasso);
+  library(pROC);
+  library(readxl)  
+})
+```
+
+### Generic function 
+```{r}
+## mp_data is a data frame for the target data set
+## a is the proportion of training data
+reportStats <- function(data, y_name="", data_imputation=TRUE, is_numeric=TRUE, 
+                        char_col, ordinal_col, group_lasso=TRUE, a) {
+  ##############################Data Pre Processing##############################
+  ############# imputation
+  data[data=="NULL"] <- NA 
+  if(data_imputation==TRUE){
+    # DATA IMPUTATION
+    data <- data
+  } else{
+    # delete obs including missing values
+    data <- data[complete.cases(data), ]
+    }
+  ############# factor categorical variables
+  if(is_numeric==TRUE){
+    # if categorical data are recoreded as numeric
+    # input: char_col=categorical variables col index
+    data[, as.vector(char_col)] <- data.frame(lapply(mp_data[, as.vector(char_col)], factor))
+  }else{
+    # if categorical data are recoreded as characters 
+    # input: char_col=0
+    for (i in 1:ncol(data)){
+      if(is.character(data[,i])){
+        data[,i]=factor(data[,i])
+      }
+    }
+  }
+  ############# ordinal>10 levels, transfer to continuous
+  for(i in ordinal_col){
+    if(length(levels(data[,i]))>=10){
+      data[, ordinal_col] <- sapply(mp_data[, ordinal_col], as.numeric)
+    }
+  }
+  ############# recode y 
+  names(data)[names(data)==y_name] <- "y"
+  data$y <- as.factor(data$y)
+  data$y <- ifelse(data$y != levels(data$y)[1], 1, -1)
+  ############# training & test data 
+  trainDataIndex <- sample(1:nrow(data), a*nrow(data))  
+  trainData <- data[trainDataIndex, ]
+  testData <- data[-trainDataIndex, ]
+  Y_train <- data$y[trainDataIndex]
+  Y_test <- data$y[-trainDataIndex]
+  
+  
+  ##################Logistic Model & Lasso Variables Selection###################
+  ############# data & group
+  X1 <- model.matrix(y ~., data = data.frame(trainData))
+  X <- X1[,-1]
+  group <- attributes(X1)$assign[-1]
+  X1_test <- model.matrix(y ~., data = data.frame(testData))
+  X_test <- X1_test[,-1]
+  if(group_lasso==TRUE){
+    #################################### group lasso
+    ############# fit group lasso penalized logistic regression
+    # finds the best lambda parameter by cross validation
+    # and returns the corresponding model
+    cv <- cv.gglasso(x=X ,y=Y_train,group=group,loss="logit",pred.loss = "loss")
+    model <- gglasso(x=X ,y=Y_train,group=group,loss="logit", lambda = cv$lambda.min)
+    ############# test 
+    l <- predict(model, newx=X_test, type="link")
+    prob <- exp(l) / (1 + exp(l))
+  } else{
+    #################################### lasso
+    # finds the best lambda parameter by cross validation
+    # and returns the corresponding model
+    cv <- cv.glmnet(X, y=Y_train, alpha=1, family="binomial",type.measure = "mse")
+    model <- glmnet(X, y=Y_train, alpha=1, family="binomial", lambda=cv$lambda.min)
+    # test data
+    prob <- predict(model,newx = X_test, s=cv$lambda.1se, type="response")
+  } 
+  
+  
+  ##################################Prediction###################################
+  # selected variables 
+  coefs <- as.matrix(coef(cv)) 
+  ix <- which(abs(coefs[,1]) > 0)
+  selected_coefs_n <- length(ix)
+  selected_coefs <- coefs[ix,1, drop=FALSE]   
+  # choose the best cut off
+  modelroc1 <- roc(Y_test, as.vector(prob))
+  threshold <- coords(modelroc1, "best", "threshold")
+  # probabilities(risks) to predictions
+  predict1 <- ifelse(as.vector(prob)>threshold[1],1,-1)
+  # accuracy, confusion matrix
+  accuracy <- mean(predict1==Y_test)  
+  confusion_matrix <- table(pred=predict1,true=Y_test)
+  
+  
+  ####################################Output#####################################
+  print("******************************************************************************")
+  print("****************************Statistical Report********************************")
+  # ROC curve    
+  print("ROC curve")
+  plot(modelroc1, print.auc=TRUE, auc.polygon=TRUE, grid=c(0.1,0.2), 
+       grid.col=c("green","red"), max.auc.polygon=TRUE, 
+       auc.polygon.col="skyblue",print.thres=TRUE)
+  cat("Prediction of test data", "\n")
+  cat("Plot each person's probabilities of missing again", "\n")
+  # predict test data 
+  plot(prob,pch = 16,col="grey")
+  points(which(predict1!=Y_test),
+         as.vector(prob)[which(predict1!=Y_test)],
+         pch = 13,col="red", cex = 1.2)
+  abline(h=threshold[1], col="purple")  
+  print(threshold)
+  print(paste('The number of selected variables:', selected_coefs_n))
+  cat("Selected variables")
+  print(selected_coefs)
+  cat("Confusion Matrix", "\n")
+  print(confusion_matrix)
+  print(paste('Accuracy:', format(accuracy,digits=2)))
+  print("******************************************************************************")
+}
+```
+
+#  Implementation Example
+## Example 1 (Complete data)
+### Read in data
+```{r}
+# read data
+mp_data1 <- readxl::read_xlsx("test.xlsx")
+mp_data2 <- readxl::read_xlsx("train.xlsx")
+mp_data <- rbind(mp_data1, mp_data2) 
+mp_data <- data.frame(mp_data)
+mp_data <- mp_data[,-1] 
+```
+
+### Output 
+```{r}
+reportStats(data=mp_data, y_name="missingAgain", data_imputation=FALSE, is_numeric=TRUE, 
+                        char_col=c(1,2,9), ordinal_col=2, group_lasso=TRUE, a=0.7) 
+```
+
+## Example 2 (Incomplete data)
+### Read in data
+```{r}
+# read data
+incomplete_data <- read.csv("mp_data.csv")
+
+
+```
+### Output 
+```{r}
+#reportStats(mp_data, a=0.75)
+```
+
+
+
+# Implementation Process
+## *Step 1: Data preparation*
+### (a) SQL Query
+* Select the target data set from SQL, with n observations and p variables.
+* Read data in R, and make it as a data frame.
+
+### (b) Recoding values for categorical variables
+As regression requires numerical inputs, categorical variables need to be recoded into a set of binary variables. Note that, for categorical variables with a large number of levels it might be useful to group together some of the levels.
+
+* Nominal Categorical Variable
+A categorical variable has several values but the order does not matter. For instance, male or female categorical variable do not have ordering. Recode males as 1 and females as 2. It involves repeated (nested) use of the ifelse() command in R.
+
+* Ordinal Categorical Variable
+Ordinal categorical variables do have a natural ordering. They can be converted to numerical values and used as is. For example, if the professor grades (“AsstProf”, “AssocProf” and “Prof”) have a special meaning, you can convert them into numerical values, ordered from low to high, corresponding to higher-grade professors.
+
+
+
+### (c)  Dealing with missing data
+Generally if you have a large enough set of data and your NAs/NANs account for ~10% of your data, you can simply remove the affected rows. If removing data will not work for you then you should look into imputation. Simple approaches include taking the average of the column and use that value, or if there is a heavy skew the median might be better. A better approach, you can perform regression or nearest neighbor imputation on the column to predict the missing values. Then continue on with your analysis/model.
+Missing values in data is a common phenomenon in real world problems. Knowing how to handle missing values effectively is a required step to reduce bias and to produce powerful models. There are various options of how to deal with missing values and how to implement them.
+
+
+* Deleting the observations
+If you have large number of observations in your dataset, where all the classes to be predicted are sufficiently represented in the training data, then try deleting (or not to include missing values while model building, for example by setting na.action=na.omit) those observations (rows) that contain missing values. 
+
+* Deleting the variable
+If a paricular variable is having more missing values that rest of the variables in the dataset, and, if by removing that one variable you can save many observations, then you are better off without that variable unless it is a really important predictor that makes a lot of business sense. It is a matter of deciding between the importance of the variable and losing out on a number of observations.
+
+* Imputation with mean / median / mode
+Replacing the missing values with the mean / median / mode is a crude way of treating missing values. Depending on the context, like if the variation is low or if the variable has low leverage over the response, such a rough approximation is acceptable and could possibly give satisfactory results.
+
+* Prediction
+Prediction is most advanced method to impute missing values and includes different approaches such as: kNNImputation, rpart, and mice. We are able to use different packages in R to predict missing values.
+
+## *Step 2: Use generic function* 
+*  Read in prepared data from process 1.
+*  Determine the proportion of training data as argument "a" in reportStats function.
+*  Use function "reportStats(mp_data, a)" to generate a model report.
+
+
+
+
