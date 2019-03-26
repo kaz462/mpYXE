@@ -20,10 +20,11 @@ We use lasso to do the feature selection, and apply a Logistic regression to the
 ## Desription 
 ## Input
 * data 
-a data set including a binary response variable, with n rows(observartions) and (p+1) columns(p variables and 1 response variable). If the variable is ordinal with 10 or more levels, we will treat this variable as continues. For this case, please make sure the levels are created in increasing  alphabetical order.  
+A data set with n rows (observations) and (p+1) columns (p variables and 1 binary response variable). An ordinal variable with >= 10 levels will be treated as continues one. In this case, 
+please make sure the levels are created in increasing alphabetical order.  
 
 * y_name
-the name of response variabel. Response variable must be a binary variable. ex. y="missingAgain".
+The name of response variabel, i.e."missingAgain". Response variable must be binary. 
 
 * data_imputation
 data imputation are required or not. data_imputation=TRUE if data imputation are required, otherwise data_imputation=FALSE. The function will delete observations(rows) with missing values automatically if data_imputation=FALSE.
